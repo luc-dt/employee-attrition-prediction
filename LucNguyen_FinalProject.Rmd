@@ -1,0 +1,1081 @@
+---
+title: "MATH624_Final_Project_EMPLOYEE_ATTRITION_PREDICTION_HR_ANALYTICS"
+author: "Luc Nguyen"
+date: "2025-12-07"
+
+output:
+  pdf_document:
+    latex_engine: xelatex
+
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# BUSINESS PROBLEM:
+
+- When employees leave a company, it can end up costing you. You have to spend money on recruiting new people, and you also lose productivity. The goal of this project is to use statistical methods to (1) identify which employees are most likely to leave the company and (2) understand the different types of employees within the workforce. These insights will help HR teams come up with the right solutions to keep employees from leaving and improve retention.
+
+- The target variable in this project is Attrition variable. 
+
+
+# 0. SETUP & LIBRARIES
+
+```{r}
+library(tidyverse)      # Data manipulation
+library(corrplot)       # Correlation plots
+library(ggplot2)        # Advanced plotting
+library(factoextra)
+library(caret)          # For train/test split and confusion matrix
+library(MASS)           # For LDA/QDA
+library(class)          # For k-NN
+library(randomForest)   # For Random Forest
+library(gbm)            # For Gradient Boosting
+library(pROC)           # For ROC curves
+
+```
+
+# 1. LOAD DATA
+
+```{r}
+# Read the CSV
+hr <- read.csv("HR_Employee_Attrition.csv", header=TRUE)
+
+# Inspect dimensions
+dim(hr)
+
+# Inspect structure
+str(hr)
+
+# Show five first rows
+head(hr)
+
+# Convert some variables to factor
+hr <- hr %>% 
+  mutate(
+    Attrition = as.factor(Attrition),
+    BusinessTravel = as.factor(BusinessTravel), 
+    Department = as.factor(Department),
+    EducationField = as.factor(EducationField),
+    Gender = as.factor(Gender),
+    JobRole = as.factor(JobRole),
+    MaritalStatus = as.factor(MaritalStatus),
+    OverTime = as.factor(OverTime)
+)
+
+```
+
+```{r}
+# Remove irrelevant columns
+hr_clean <- hr[, !(names(hr) %in% c("EmployeeCount","EmployeeNumber", "Over18", "StandardHours"))]
+
+str(hr_clean)
+names(hr_clean)
+```
+
+# 2. EXPLORATORY DATA ANALYSIS (EDA)
+
+## 2.1 Check class imbalance 
+
+```{r}
+# Frequency table
+attrition_table <- table(hr_clean$Attrition)
+print(attrition_table)
+
+# Proportions 
+attrition_prop <- prop.table(attrition_table)
+print(round(attrition_prop * 100, 2))
+
+# Visualization
+par(mfrow=c(1,1))
+barplot(attrition_table, main="Employee Attrition Distribution", 
+          xlab="Attrition", ylab="Count",
+          col=c("lightgreen", "salmon"),
+          border="black", ylim=c(0, max(attrition_table) * 1.2))
+
+# Add counts on bars 
+text(x = c(0.7, 1.9), y = attrition_table + 50,
+     labels = attrition_table, font = 2)
+
+cat("\nFinding: ", round(attrition_prop[2] * 100, 1), "% of employees left the company\n")
+```
+- Only 16.1% of employees left (class imbalance)
+- This means our models may be biased toward "No" predictions
+- We should pay attention to Sensitivity (catching the "Yes" cases)
+
+## 2.2 Missing values
+
+```{r}
+missing_counts <- colSums(is.na(hr_clean))
+total_missing <- sum(is.na(hr_clean))
+
+cat("Total missing: ", total_missing, "\n")
+
+if(total_missing > 0){
+  cat("\nColumns with missing values:\n")
+  print(missing_counts[missing_counts > 0])
+} else {
+  cat("No missing values detected! Clean dataset.\n")
+}
+
+```
+
+## 2.3 Summary statistics 
+
+
+```{r}
+summary(hr_clean)
+```
+
+
+## 2.4 Histograms for important numeric values 
+
+
+```{r}
+numeric_cols <- names(hr_clean)[sapply(hr_clean, is.numeric)]
+features_numeric_cols <- c("Age", "DistanceFromHome", "YearsAtCompany", "MonthlyIncome", "JobSatisfaction", "WorkLifeBalance")
+features_numeric_cols
+
+par(mfrow=c(2, 3), mar = c(4, 4, 3, 2))
+
+# Age
+hist(hr_clean$Age, main="Age Distribution", xlab="Age", col="lightblue", border = "white", breaks = 20)
+
+# DistanceFromHome
+hist(hr_clean$DistanceFromHome, main="Distance From Home ", xlab="Distance (miles)", col="violet", border = "white", breaks = 20)
+
+# YearsAtCompany
+hist(hr_clean$YearsAtCompany, main="Years At Company", xlab="Years", col="lightcoral", border = "white", breaks = 20)
+
+# MonthlyIncome
+hist(hr_clean$MonthlyIncome, main="Monthly Income Distribution", xlab="Monthly Income ($)", col="lightgreen", border="white", breaks=20)
+
+# JobSatisfaction
+hist(hr_clean$JobSatisfaction, main="Job Satisfaction", xlab="Rating (1-4)", col="lightblue", border="white", breaks=4)
+
+# WorkLifeBalance
+hist(hr_clean$WorkLifeBalance, main="Work-Life Balance", xlab="Rating (1-4)", col="lightpink", border="white", breaks=4)
+
+# Reset plotting area
+par(mfrow=c(1,1))
+
+```
+- Age: 
+    + bell-shaped distribution.
+    + most employees are 30-45.
+    
+- DistanceFromHome: 
+    + right-skwewed -> most live close to work
+    + a few live 20-30 miles away.
+    
+- YearAtCompany:
+    + many new employees (0-10 years).
+    + very few long-tenure employees (20-40 years).
+    
+- MonthlyIncome:
+    + heavily right-skewed --> potential log-transform later.
+    + most employees earn under $8k.
+
+- JobSatisfaction:
+    + fairly evenly distributed (but few 1's).
+    
+- Work-Life Balace:
+    + most employees rate 2-3 --> it's average level.
+    + a few employees rate more than 3. 
+
+## 2.5 Boxplots vs Attrition
+
+
+```{r}
+par(mfrow=c(2, 3), mar = c(4, 4, 3, 2))
+
+# Age vs Attrition
+boxplot(Age ~ Attrition, data=hr_clean, main="Age vs Attrition", xlab="Attrition", ylab="Age", col=c("lightgreen", "salmon"), border="black")
+
+# Distance vs Attrition
+boxplot(DistanceFromHome ~ Attrition, data=hr_clean, main="Distance vs Attrition", xlab="Attrition", ylab="Distance", col=c("lightgreen", "salmon"), border="black")
+
+# YearsAtCompany vs Attrition
+boxplot(YearsAtCompany ~ Attrition, data=hr_clean, main="Years vs Attrition", xlab="Attrition", ylab="Years", col=c("lightgreen", "salmon"), border="black")
+
+# MonthlyIncome vs Attrition
+boxplot(MonthlyIncome ~ Attrition, data=hr_clean, main="Monthly Income vs Attrition", xlab="Attrition", ylab="Monthly Income ($)", col=c("lightgreen", "salmon"), border="black")
+
+# JobSatisfaction vs Attrition
+boxplot(JobSatisfaction ~ Attrition, data=hr_clean, main="Job Satisfaction vs Attrition", xlab="Attrition", ylab="JobSatisfaction", col=c("lightgreen", "salmon"), border="black")
+
+# WorkLifeBalance
+boxplot(WorkLifeBalance ~ Attrition, data=hr_clean, main="Work Life Balance vs Attrition", xlab="Attrition", ylab="WorkLifeBalance", col=c("lightgreen", "salmon"), border="black")
+
+# Reset plotting area
+par(mfrow=c(1,1))
+
+```
+- Age: Younger employees leave more often.
+    
+- Distance From Home: long commute increases attrition risk.
+
+- Years At Company: new employees are the most unstable.
+
+- Monthly InCome: lower-paid employees leave more often.
+
+- Job Satisfaction: employees leaving the company tend to have lower job satisfaction.
+
+- Work-Life Balance: poor work-life balance could be contributor. 
+
+## 2.6 Correlation matrix (numeric only)
+
+
+```{r}
+# Calculate correlation
+cor_matrix <- cor(hr_clean[, numeric_cols], use = "complete.obs")
+
+# Plot correlation matrix
+corrplot(cor_matrix, 
+         method = "color", 
+         type = "full",
+         tl.cex = 0.75,
+         tl.col = "black",
+         title = "Correlation Matrix - Numeric Features",
+         order="hclust",
+         mar = c(0, 0, 2, 0))
+
+
+```
+
+- Strong correlations:
+
+  + YearsAtCompany <--> YearsInCurrentRole: People usually stay in a role as long as they stay in the company.
+  + YearsWithCurrManager <--> YearsAtCompany: Longer tenure = more years with current manager.
+  + TotalWorkingYears <--> Age: older employees tend to have more experience.
+  + MonthlyIncome <--> JobLevel: higer job level -> much higher salary. 
+  
+- Weak correlations: JobSatisfaction, PercentSalaryHike, EnvironmentSatisfaction, WorkLifeBalance, NumCompaniesWorker.
+
+
+```{r}
+cat("\n==== EDA ANALYSIS SUMMARY ===\n")
+cat("Dataset size: ", nrow(hr_clean), "employees ", ncol(hr_clean), "features\n")
+cat("Attrition rate: ", round(attrition_prop[2] * 100, 2), "%\n")
+cat("Class imbalance: 1233 No vs 237 Yes \n")
+cat("No missing values\n")
+cat("Strong correlation: Tenure-Role, Age-Experience, Income-JobLevel\n")
+cat("Key predictors identified: Age, Income, Tenure, JobSatisfaction\n")
+
+```
+
+
+# 3. UNSUPERVISED LEARNING 
+
+- Definition: finding patterns in data without a target variable (no "labels" to predict)
+
+- In our project:
+
+      * don't use Attrition (yet!).
+      * look at employees features only.
+      * discover natural groupings.
+      * find hidden patterns. 
+
+## 3.1 PRINCIPAL COMPONENT ANALYSIS (PCA)
+
+- PCA helps compresses 31 features to 5-10 principal components (PCs).
+
+- Why we do it:
+    * reduce complexity (easier to visualize)
+    * remove noise (focus on important variation)
+    * find patterns (what drives employee differences?)
+    
+- Goal: Understand main patterns
+
+```{r}
+
+# Select only numeric columns
+numeric_cols_data <- hr_clean[, sapply(hr_clean, is.numeric)]
+num_numeric_cols <- ncol(numeric_cols_data)
+cat("\nNumber of numeric columns is: ", num_numeric_cols, "\n")
+
+# Standardize with scale()
+scaled_data <- scale(numeric_cols_data, center=TRUE, scale=TRUE)
+
+# Run PCA
+hr_pca <- prcomp(scaled_data, center = FALSE, scale. = FALSE)
+
+# Print summary
+print(summary(hr_pca))
+
+# Scree plot (how many PCs to keep?)
+fviz_eig(hr_pca, addlabels = TRUE, ylim = c(0, 25), main = "Variance Explained by Each PC")
+
+# Percent of variance explained (PVE)
+hr_pve <- hr_pca$sdev^2 / sum(hr_pca$sdev^2)
+hr_cummulative_pve <- cumsum(hr_pve)
+
+plot(hr_cummulative_pve, type = "b", 
+     xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained",
+     main = "Cumulative Variance Explained", ylim = c(0, 1))
+     abline(h = 0.8, col = "red", lty = 2)  # 80% threshold
+     text(15, 0.82, "80% threshold", col = "red")
+
+
+# Biplot (employees plotted in PC1 vs PC2 space)
+fviz_pca_biplot(hr_pca, 
+                geom.ind = "point",
+                col.ind = hr_clean$Attrition,
+                palette = c("lightgreen", "salmon"),
+                addEllipses = TRUE,
+                col.var = "black",
+                repel = TRUE,
+                legend.title = "Attrition",
+                title = "PCA Biplot - PC1 vs PC2")
+
+```
+
+```{r}
+cat("\n=============== PC1 LOADING =============== \n")
+hr_pc1 <- sort(abs(hr_pca$rotation[, 1]), decreasing = TRUE)[1:10]
+print(hr_pca$rotation[names(hr_pc1), 1])
+
+cat("\n=============== PC2 LOADING =============== \n")
+hr_pc2 <- sort(abs(hr_pca$rotation[, 2]), decreasing = TRUE)[1:10]
+print(hr_pca$rotation[names(hr_pc2), 2])
+
+cat("\n=============== PC3 LOADING =============== \n")
+hr_pc3 <- sort(abs(hr_pca$rotation[, 3]), decreasing = TRUE)[1:10]
+print(hr_pca$rotation[names(hr_pc3), 3])
+```
+
+
+```{r}
+cat("\n╔══════════════════════════════════════════════════════════════╗\n")
+cat("║                 PCA ANALYSIS SUMMARY                  ║\n")
+cat("╚══════════════════════════════════════════════════════════════╝\n\n")
+
+cat("1. DIMENSIONALITY REDUCTION:\n")
+cat("   • Original features: 23 numeric variables\n")
+cat("   • Optimal PCs: 10-13 components\n")
+cat("   • First 10 PCs explain: 68.2% of total variance\n")
+cat("   • First 13 PCs explain: 80.4% of total variance (✓ 80% threshold)\n")
+cat("   • Dimension reduction achieved: 23 → 13 (43% reduction)\n")
+cat("   • Information retained: 80.4%\n\n")
+
+cat("2. PRINCIPAL COMPONENT INTERPRETATIONS:\n\n")
+
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   PC1 (20.2% variance) = 'CAREER SENIORITY & TENURE'\n")
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   Top loadings (all negative):\n")
+cat("     • TotalWorkingYears      : -0.403\n")
+cat("     • YearsAtCompany         : -0.392\n")
+cat("     • JobLevel               : -0.383\n")
+cat("     • MonthlyIncome          : -0.375\n")
+cat("     • YearsInCurrentRole     : -0.336\n")
+cat("     • YearsWithCurrManager   : -0.330\n")
+cat("     • YearsSinceLastPromotion: -0.297\n")
+cat("     • Age                    : -0.277\n\n")
+cat("   Interpretation:\n")
+cat("   This PC captures the CAREER PROGRESSION dimension.\n")
+cat("   • LOW PC1 (negative)  = Senior employees\n")
+cat("       (older, long tenure, high job level, high income)\n")
+cat("   • HIGH PC1 (positive) = Junior employees\n")
+cat("       (younger, new hires, entry-level, lower income)\n\n")
+cat("   Business Insight:\n")
+cat("   Career seniority is THE DOMINANT factor (20%) that\n")
+cat("   differentiates employees in this company.\n\n")
+
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   PC2 (8.0% variance) = 'PERFORMANCE & JOB MOBILITY'\n")
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   Top loadings (mixed signs):\n")
+cat("     • PerformanceRating      : +0.443 (positive)\n")
+cat("     • PercentSalaryHike      : +0.424 (positive)\n")
+cat("     • NumCompaniesWorked     : -0.379 (negative)\n")
+cat("     • Age                    : -0.283 (negative)\n")
+cat("     • YearsWithCurrManager   : +0.282 (positive)\n")
+cat("     • YearsInCurrentRole     : +0.282 (positive)\n\n")
+cat("   Interpretation:\n")
+cat("   This PC has TWO contrasting patterns:\n")
+cat("   • HIGH PC2 (positive) = High performers with stability\n")
+cat("       (high ratings, good raises, stable in role, fewer companies)\n")
+cat("   • LOW PC2 (negative)  = Job hoppers\n")
+cat("       (older, changed companies frequently)\n\n")
+cat("   Business Insight:\n")
+cat("   Performance and job stability are the SECOND major\n")
+cat("   dimension. High performers tend to stay in one place.\n\n")
+
+
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   PC3 (7.6% variance) = 'RECENT PERFORMANCE RECOGNITION'\n")
+cat("   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+cat("   Top loadings:\n")
+cat("     • PercentSalaryHike      : +0.560\n")
+cat("     • PerformanceRating      : +0.543\n")
+cat("     • NumCompaniesWorked     : +0.304\n")
+cat("     • Age                    : +0.255\n\n")
+cat("   Interpretation:\n")
+cat("   This PC emphasizes RECENT recognition (raises + ratings).\n")
+cat("   • HIGH PC3 = Recently recognized high performers\n")
+cat("       (just got big raises and high ratings)\n")
+cat("   • LOW PC3 = Not recently recognized\n\n")
+cat("   Business Insight:\n")
+cat("   Recent performance recognition is independent from\n")
+cat("   overall career seniority (PC1) and long-term stability (PC2).\n\n")
+
+
+cat("3. ATTRITION PATTERNS IN PC SPACE (FROM BIPLOT):\n")
+cat("   • Attrition='No' (green circles):\n")
+cat("       - Spread across entire PC1-PC2 space\n")
+cat("       - Larger ellipse (higher variance)\n")
+cat("       - Concentrated in center-left region (more senior)\n\n")
+cat("   • Attrition='Yes' (red triangles):\n")
+cat("       - Also spread, but with different distribution\n")
+cat("       - Smaller ellipse (lower variance)\n")
+cat("       - Slight tendency toward right side (less senior)\n\n")
+cat("   • Overlap between groups:\n")
+cat("       - Ellipses OVERLAP significantly\n")
+cat("       - This means: PC1 and PC2 alone CANNOT perfectly\n")
+cat("         separate employees who leave from those who stay\n\n")
+cat("   Conclusion:\n")
+cat("   Attrition is influenced by career seniority and performance,\n")
+cat("   but OTHER factors (not captured by PC1-PC2) are also important.\n")
+cat("   This justifies the need for supervised learning with ALL features.\n\n")
+
+
+cat("4. KEY INSIGHTS & BUSINESS IMPLICATIONS:\n")
+cat("   ✓ Career progression (seniority) is the PRIMARY differentiator\n")
+cat("       → 20% of all employee variation\n")
+cat("       → Suggests strong hierarchy in organization\n\n")
+cat("   ✓ Performance and job stability form a SECONDARY dimension\n")
+cat("       → 8% of variation\n")
+cat("       → High performers are more stable\n\n")
+cat("   ✓ Recent recognition is an INDEPENDENT dimension\n")
+cat("       → 7.6% of variation\n")
+cat("       → Getting raises/ratings is separate from tenure\n\n")
+cat("   ✓ Satisfaction metrics (Job, Environment, WorkLife) are NOT\n")
+cat("     dominant in PC1-3, suggesting they're independent factors\n")
+cat("       → Will likely appear in PC4-7\n")
+cat("       → May be important for attrition prediction\n\n")
+cat("   ✓ Attrition cannot be predicted by seniority/performance alone\n")
+cat("       → Need multi-dimensional approach (supervised learning)\n")
+cat("       → Clustering may reveal distinct at-risk groups\n\n")
+
+
+cat("5. DECISION FOR CLUSTERING (NEXT STEP):\n")
+cat("   Recommendation: Use first 10 PCs for K-means clustering\n\n")
+cat("   Rationale:\n")
+cat("   • Captures 68.2% of variance (substantial)\n")
+cat("   • Reduces noise from minor PCs (PC11-23 only add 31.8%)\n")
+cat("   • Computationally efficient\n")
+cat("   • Easier to interpret cluster profiles\n\n")
+
+```
+
+## 3.2 K-MEANS CLUSTERING
+
+- Groups employees into K distinct clusters. This primary goal of this technique is pattern recognition and knowledge discovery. 
+
+- Why we do it:
+
+    * segment employees into meaningful groups.
+    * understand hidden patterns in workforce behavior.
+    * identify high-risk groups.
+    * support HR decision-making.
+    
+- Goal: Create employee segments
+
+```{r}
+# Determine optimal k 
+pca_scores <- hr_pca$x[, 1:10]
+
+## Elbow method (wss)
+fviz_nbclust(pca_scores, kmeans, method = "wss", k.max = 10) + ggtitle("Elbow Method for Optimal k")
+
+## silhouette  method
+fviz_nbclust(pca_scores, kmeans, method = "silhouette", k.max = 10) + ggtitle("Silhouette Method for Optimal k")
+
+optimal_k <- 4
+
+# Run k-means
+set.seed(123)
+km.out <- kmeans(pca_scores, centers = optimal_k, nstart=20)
+# Display the total within-cluster sum of squares for the best result found
+km.out$tot.withinss 
+
+# Add cluster labels to original dataset
+cluster_assignments = km.out$cluster
+hr_clean$cluster <- as.factor(cluster_assignments)
+
+
+# Visualize clusters (PC1 vs PC2)
+
+plot(pca_scores[,1], pca_scores[,2], col = cluster_assignments, pch = 19,
+     xlab = "PC1", ylab = "PC2",
+     main = "K-Means Clustering (k = 4) on PCA Data")
+     legend("topright", legend = levels(hr_clean$cluster), col = 1:4, pch = 19)
+     
+# Numeric Variable Means by Cluster
+hr_cluster_profile <- aggregate(hr_clean[, numeric_cols], by=list(cluster=hr_clean$cluster), mean)
+key_variables <- hr_cluster_profile[c("cluster", "Age", "MonthlyIncome", "JobLevel", "TotalWorkingYears", "YearsAtCompany", "YearsWithCurrManager")]
+
+# Attrition Rate per Cluster
+hr_attrition_by_cluster <- table(hr_clean$cluster, hr_clean$Attrition)
+
+# Convert attrition table to data frame and add attrition rate
+attr_df <- as.data.frame.matrix(hr_attrition_by_cluster)
+attr_df$cluster <- rownames(attr_df)
+attr_df$attrition_rate <- attr_df$Yes / (attr_df$Yes + attr_df$No)
+
+# Merge with key_variables
+final_df <- merge(key_variables, attr_df, by = "cluster")
+final_df
+
+     
+```
+
+```{r}
+
+cat("\n╔══════════════════════════════════════════════════════════════╗\n")
+cat("║                 K-MEANS CLUSTERING ANALYSIS                  ║\n")
+cat("╚══════════════════════════════════════════════════════════════╝\n\n")
+
+cat("1. CLUSTERING SETUP:\n")
+cat("   • Clustering performed on first 10 PCA components\n")
+cat("   • Reason: 10 PCs retain 68.2% variance while removing noise\n")
+cat("   • Distance metric: Euclidean (default for k-means)\n")
+cat("   • Initialization: 20 random starts (nstart = 20)\n")
+cat("   • Scaling: Data already standardized via PCA\n\n")
+
+cat("2. DETERMINING THE OPTIMAL NUMBER OF CLUSTERS (k):\n")
+cat("   • Elbow Method:\n")
+cat("       - Clear bend observed at k = 4\n")
+cat("       - WSS reduction slows significantly after 4 clusters\n")
+cat("   • Silhouette Method:\n")
+cat("       - Second highest average silhouette width at k = 4\n")
+cat("   • Consensus:\n")
+cat("       → Optimal number of clusters: k = 4\n\n")
+
+cat("3. K-MEANS RESULTS (k = 4):\n")
+cat("   • Algorithm converged successfully\n")
+cat("   • Total within-cluster sum of squares minimized\n")
+cat("   • Cluster assignment added to dataset as factor 'cluster'\n")
+cat("   • Visualization (PC1 vs. PC2) shows clear group separation\n\n")
+
+cat("4. CLUSTER PROFILES (MEAN VALUES OF NUMERIC FEATURES):\n")
+cat("   • Cluster 1 — Early-Career, Moderate Stability\n")
+cat("       - Age ≈ 35, Tenure ≈ 6 years\n")
+cat("       - Job Level: low–mid (1.7)\n")
+cat("       - Income: moderate\n")
+cat("       - Attrition rate: ~18.9%\n\n")
+
+cat("   • Cluster 2 — Senior, High-Level Employees\n")
+cat("       - Age ≈ 48, Tenure ≈ 15 years\n")
+cat("       - Job Level: high (4.1)\n")
+cat("       - Income: very high\n")
+cat("       - Performance slightly higher\n")
+cat("       - Attrition rate: lowest (~8.4%)\n\n")
+
+cat("   • Cluster 3 — New / Early-Career High-Risk Group\n")
+cat("       - Age ≈ 34, Tenure ≈ 3.4 years\n")
+cat("       - Lowest tenure in org & role\n")
+cat("       - Job Level: lowest (1.53)\n")
+cat("       - Income: lowest\n")
+cat("       - Attrition rate: highest (~20.9%)\n")
+cat("       → This group is the primary risk segment\n\n")
+
+cat("   • Cluster 4 — Mid-Career Stable Employees\n")
+cat("       - Age ≈ 36, Tenure ≈ 10 years\n")
+cat("       - Job Level: medium (2.1)\n")
+cat("       - Stable roles & manager relationships\n")
+cat("       - Attrition rate: low (~9.2%)\n\n")
+
+cat("5. ATTRITION BY CLUSTER:\n")
+cat("   • Cluster 1: 18.9% attrition\n")
+cat("   • Cluster 2:  8.4% attrition (lowest)\n")
+cat("   • Cluster 3: 20.9% attrition (highest)\n")
+cat("   • Cluster 4:  9.2% attrition\n\n")
+
+cat("   Interpretation:\n")
+cat("   - Cluster 3 is the most at-risk group: young, new employees with\n")
+cat("     low job level, low income, and minimal tenure.\n")
+cat("   - Clusters 2 and 4 show strong employee retention.\n\n")
+
+cat("6. BUSINESS INSIGHTS FROM CLUSTERING:\n")
+cat("   ✓ K-means successfully identifies distinct employee segments.\n")
+cat("   ✓ Attrition is most concentrated among early-tenure and low-level roles.\n")
+cat("   ✓ Seniority and experience correlate strongly with retention.\n")
+cat("   ✓ Profiles indicate that onboarding & early-career support could reduce turnover.\n")
+cat("   ✓ Clustering reveals nuanced employee groups not visible in PCA alone.\n\n")
+
+cat("7. RECOMMENDATIONS:\n")
+cat("   • Target Cluster 3 with retention strategies:\n")
+cat("       - Improve training, mentorship, salary progression\n")
+cat("       - Monitor workload and job satisfaction closely\n")
+cat("   • Maintain development pipelines for Cluster 1\n")
+cat("   • Preserve stability and recognition programs for Cluster 2 and 4\n\n")
+
+cat("K-MEANS CLUSTERING ANALYSIS COMPLETE ✓\n")
+
+```
+
+
+## 3.3 HIERARCHICAL CLUSTERING
+
+- Creates a tree (dendrogram) showing how employees group together.
+
+- Why we do it:
+    * validate K-means results.
+    * see clustering at ALL levels.
+    * no need to pre-specify K.
+  
+- How it works: Bottom-up (Agglomerative)
+
+- Linkage Methods (how to measure "similarity"):
+    * complete linkage: maximum distance between clusters.
+    * average linkage: average distance.
+    * single linkage: minimum distance. 
+    
+- Goal: Validate K-means.
+
+```{r}
+# Compute distance matrix on PCA scores
+dist.matrix <- dist(pca_scores, method="euclidean")
+
+# Run hierarchical clustering (three linkage methods)
+hc.complete <- hclust(dist.matrix, method="complete")
+hc.average <- hclust(dist.matrix, method="average")
+hc.single <- hclust(dist.matrix, method="single")
+
+# Plot dendrograms
+par(mfrow = c(3, 1))
+plot(hc.complete, main = "Complete Linkage", xlab = "", sub = "", ylab = "", cex = 0.5)
+plot(hc.average, main = "Average Linkage", xlab = "", sub = "", ylab = "", cex = 0.5)
+plot(hc.single, main = "Single Linkage", xlab = "", sub = "", ylab = "", cex = 0.5)
+par(mfrow = c(1, 1))
+
+# Cut dendrogram to form clusters and compare with K-means.
+#$Cut into k=4 clusters
+hc.clusters <- cutree(hc.complete, 4)
+
+#$ Compare with K-means
+table(km.out$cluster, hc.clusters)
+
+cat("\nComparison of K-means vs. Hierarchical (Complete Linkage):\n")
+print(table(km.out$cluster, hc.clusters))
+
+cat("\nCluster size comparison:\n")
+cat("K-means:      ", table(km.out$cluster), "\n")
+cat("Hierarchical: ", table(hc.clusters), "\n")
+
+```
+
+```{r}
+
+cat("\n═══════════════════════════════════════════════════════════════\n")
+cat("📋 HIERARCHICAL CLUSTERING ANALYSIS SUMMARY 📋\n")
+cat("═══════════════════════════════════════════════════════════════\n\n")
+
+cat("1. METHODOLOGY:\n")
+cat("   • Distance metric: Euclidean distance on PCA scores\n")
+cat("   • Linkage methods tested: Complete, Average, Single\n")
+cat("   • Number of clusters selected: k = 4 (to compare with K-means)\n\n")
+
+cat("2. DENDROGRAM OBSERVATIONS:\n")
+cat("   • NOTE: With 1,470 employees, dendrograms are not visually interpretable\n")
+cat("   • Individual labels cannot be displayed at this scale\n")
+cat("   • We rely on the cut tree results and cross-tabulation instead\n")
+cat("   • Complete linkage selected as it typically handles outliers well\n\n")
+
+cat("3. COMPARISON WITH K-MEANS:\n")
+cat("   • Cross-tabulation shows that the methods are somewhat similar.\n")
+cat("   • The largest K-means cluster (Cluster 3) maps strongly to\n")
+cat("     hierarchical Cluster 1 → good agreement for this segment\n")
+cat("   • Other clusters are split across multiple hierarchical groups\n")
+cat("   • Hierarchical cluster sizes are highly unbalanced (927 vs. 100)\n")
+cat("   → This is expected in high-dimensional datasets\n\n")
+
+cat("4. INTERPRETATION:\n")
+cat("   • Both algorithms detect underlying structure in the workforce\n")
+cat("   • However, hierarchical clustering groups employees more broadly\n")
+cat("   • K-means provides clearer segmentation and better separation\n")
+cat("   • Therefore, K-means is the more reliable clustering method here\n\n")
+
+cat("5. CONCLUSION:\n")
+cat("   • Hierarchical clustering does *not* replicate K-means exactly,\n")
+cat("     but it supports the presence of 3–5 natural groupings.\n")
+cat("   • K=4 from K-means remains justified and provides actionable segments.\n")
+cat("   • K-means segmentation will be used for downstream modeling.\n\n")
+
+```
+
+
+
+
+# 4. SUPERVISED LEARNING 
+
+- Remove irrelevant columns (already done earlier, but double-check)
+- Keep the cluster variable as a feature (from K-means)
+- Create train/test split (e.g., 70/30 or 80/20)
+- Handle factor variables appropriately
+
+- Goal: Predict Attrition (Yes/No) using employee features.
+
+```{r}
+# set seed for reproducibility
+set.seed(123)
+str(hr_clean$Attrition)
+
+# Train/test split (70/30)
+train.indices <- createDataPartition(hr_clean$Attrition, p = 0.7, list = FALSE)
+train.dat <- hr_clean[train.indices, ]
+test.dat <- hr_clean[-train.indices, ]
+
+# Check split 
+cat("Training set size: ", nrow(train.dat), "\n")
+cat("Test set size: ", nrow(test.dat), "\n")
+cat("Training attrition rate: ", mean(train.dat$Attrition == "Yes"), "\n")
+cat("Test attrition rate: ", mean(test.dat$Attrition == "Yes"), "\n")
+
+```
+
+## 4.1 BUILD CLASSIFICATION MODELS
+
+### Model 1: Logistic Regression
+
+```{r}
+# Logistic Regression
+logit.model <- glm(Attrition ~., data=train.dat, family = binomial)
+
+# Summary
+summary(logit.model)
+
+# Predictions on the test set (probabilities)
+logit.probs <- predict(logit.model, newdata=test.dat, type="response")
+
+# Convert predicted probabilities to binary class predictions (threshold = 0.5)
+logit.pred <- ifelse(logit.probs > 0.5, "Yes", "No")
+logit.pred <- factor(logit.pred, levels = c("No", "Yes"))
+
+# Confuse matrix
+logit.cm <- confusionMatrix(logit.pred, test.dat$Attrition, positive="Yes")
+print(logit.cm)
+
+# Store results for later comparison
+logit.accuracy <- logit.cm$overall['Accuracy']
+logit.sensitivity <- logit.cm$byClass['Sensitivity']
+logit.specificity <- logit.cm$byClass['Specificity']
+
+cat("\n=== LOGISTIC REGRESSION RESULTS ===\n")
+cat("Accuracy:   ", round(logit.accuracy, 4), "\n")
+cat("Sensitivity:", round(logit.sensitivity, 4), "\n")
+cat("Specificity:", round(logit.specificity, 4), "\n")
+
+
+```
+
+### Model 2: LDA
+
+```{r}
+# LDA
+lda.model <- lda(Attrition ~ ., data = train.dat)
+lda.pred <- predict(lda.model, newdata = test.dat)
+lda.class <- lda.pred$class
+
+# Confusion matrix
+lda.cm <- confusionMatrix(lda.class, test.dat$Attrition, positive="Yes")
+print(lda.cm)
+
+# Store results 
+lda.accuracy <- lda.cm$overall['Accuracy']
+lda.sensitivity <- lda.cm$byClass['Sensitivity']
+lda.specificity <- lda.cm$byClass['Specificity']
+
+cat("\n=== LDA RESULTS ===\n")
+cat("Accuracy:   ", round(lda.accuracy, 4), "\n")
+cat("Sensitivity:", round(lda.sensitivity, 4), "\n")
+cat("Specificity:", round(lda.specificity, 4), "\n")
+
+
+```
+
+### Model 3: QDA
+
+```{r}
+# QDA
+qda.model <- qda(Attrition ~ Age + DistanceFromHome + MonthlyIncome + 
+                 OverTime + JobSatisfaction + EnvironmentSatisfaction + 
+                 WorkLifeBalance + YearsAtCompany + NumCompaniesWorked, data = train.dat)
+
+qda.pred <- predict(qda.model, newdata=test.dat)
+qda.class <- qda.pred$class
+
+# Confusion matrix
+qda.cm <- confusionMatrix(qda.class, test.dat$Attrition, positive = "Yes")
+print(qda.cm)
+
+# Store results
+qda.accuracy <- qda.cm$overall['Accuracy']
+qda.sensitivity <- qda.cm$byClass['Sensitivity']
+qda.specificity <- qda.cm$byClass['Specificity']
+
+cat("\n=== QDA RESULTS (Simplified Model) ===\n")
+cat("Accuracy:   ", round(qda.accuracy, 4), "\n")
+cat("Sensitivity:", round(qda.sensitivity, 4), "\n")
+cat("Specificity:", round(qda.specificity, 4), "\n")
+
+```
+
+### Model 4: K-NN
+
+```{r}
+# k-NN
+
+# Create numeric versions
+train.numeric <- train.dat[, sapply(train.dat, is.numeric)]
+test.numeric <- test.dat[, sapply(test.dat, is.numeric)]
+
+# Add cluster as numeric
+train.numeric$cluster <- as.numeric(train.dat$cluster)
+test.numeric$cluster <- as.numeric(test.dat$cluster)
+
+# Scale the data
+train.scaled <- scale(train.numeric)
+test.scaled <- scale(test.numeric,  center = attr(train.scaled, "scaled:center"),
+                     scale = attr(train.scaled, "scaled:scale"))
+
+# Run k-NN (k=5)
+set.seed(123)
+knn.pred <- knn(train = train.scaled,  test = test.scaled, cl = train.dat$Attrition, k = 5)
+
+# Confusion matrix
+knn.cm <- confusionMatrix(knn.pred, test.dat$Attrition, positive = "Yes")
+print(knn.cm)
+
+# Store results
+knn.accuracy <- knn.cm$overall['Accuracy']
+knn.sensitivity <- knn.cm$byClass['Sensitivity']
+knn.specificity <- knn.cm$byClass['Specificity']
+
+cat("\n=== k-NN RESULTS ===\n")
+cat("Accuracy:   ", round(knn.accuracy, 4), "\n")
+cat("Sensitivity:", round(knn.sensitivity, 4), "\n")
+cat("Specificity:", round(knn.specificity, 4), "\n")
+```
+
+
+### Model 5: Random Forest
+
+```{r}
+# Random Forest
+set.seed(123)
+rf.model <- randomForest(Attrition ~ ., data = train.dat, ntree = 500, importance = TRUE)
+
+# Predictions
+rf.pred <- predict(rf.model, newdata = test.dat)
+
+# Confusion matrix
+rf.cm <- confusionMatrix(rf.pred, test.dat$Attrition, positive = "Yes")
+print(rf.cm)
+
+# Store results
+rf.accuracy <- rf.cm$overall['Accuracy']
+rf.sensitivity <- rf.cm$byClass['Sensitivity']
+rf.specificity <- rf.cm$byClass['Specificity']
+
+cat("\n=== RANDOM FOREST RESULTS ===\n")
+cat("Accuracy:   ", round(rf.accuracy, 4), "\n")
+cat("Sensitivity:", round(rf.sensitivity, 4), "\n")
+cat("Specificity:", round(rf.specificity, 4), "\n")
+
+# Variable importance plot
+par(mar = c(8, 10, 4, 4))   
+varImpPlot(rf.model, main = "Variable Importance - Random Forest", cex=0.6, pch=16, col="blue")
+
+```
+
+### Model 6: Gradient Boosting
+
+```{r}
+# Gradient Boosting (needs 0/1 response)
+train.dat.gbm <- train.dat
+train.dat.gbm$Attrition <- ifelse(train.dat$Attrition == "Yes", 1, 0)
+
+set.seed(123)
+gbm.model <- gbm(Attrition ~ ., data = train.dat.gbm, distribution = "gaussian", n.trees = 500, interaction.depth = 4)
+
+# Predictions (probabilities)
+gbm.probs <- predict(gbm.model, newdata = test.dat, n.trees = 500, type = "response")
+gbm.pred <- ifelse(gbm.probs > 0.5, "Yes", "No")
+gbm.pred <- factor(gbm.pred, levels = c("No", "Yes"))
+
+# Confusion matrix
+gbm.cm <- confusionMatrix(gbm.pred, test.dat$Attrition, positive = "Yes")
+print(gbm.cm)
+
+# Store results
+gbm.accuracy <- gbm.cm$overall['Accuracy']
+gbm.sensitivity <- gbm.cm$byClass['Sensitivity']
+gbm.specificity <- gbm.cm$byClass['Specificity']
+
+cat("\n=== GRADIENT BOOSTING RESULTS ===\n")
+cat("Accuracy:   ", round(gbm.accuracy, 4), "\n")
+cat("Sensitivity:", round(gbm.sensitivity, 4), "\n")
+cat("Specificity:", round(gbm.specificity, 4), "\n")
+
+```
+
+
+# 5. MODEL EVALUATION
+
+```{r}
+# Create comparison table
+model.comparison <- data.frame(
+  Model = c("Logistic Regression", "LDA", "QDA", "k-NN", "Random Forest", "Gradient Boosting"),
+  Accuracy = c(logit.accuracy, lda.accuracy, qda.accuracy, knn.accuracy, rf.accuracy, gbm.accuracy),
+  Sensitivity = c(logit.sensitivity, lda.sensitivity, qda.sensitivity, knn.sensitivity, rf.sensitivity, gbm.sensitivity),
+  Specificity = c(logit.specificity, lda.specificity, qda.specificity, knn.specificity, rf.specificity, gbm.specificity)
+)
+
+cat("\n═══════════════════════════════════════════════════════════════\n")
+cat("📊 MODEL PERFORMANCE COMPARISON 📊\n")
+cat("═══════════════════════════════════════════════════════════════\n\n")
+
+print(round(model.comparison[, -1], 4))  
+cat("\n")
+print(model.comparison)  
+
+# Find best model (exclude rows with NA)
+valid.rows <- complete.cases(model.comparison)
+model.comparison.valid <- model.comparison[valid.rows, ]
+
+best.accuracy <- model.comparison.valid[which.max(model.comparison.valid$Accuracy), ]
+best.sensitivity <- model.comparison.valid[which.max(model.comparison.valid$Sensitivity), ]
+
+cat("\n🏆 BEST MODELS:\n")
+cat("Highest Accuracy:   ", best.accuracy$Model, "(", round(best.accuracy$Accuracy, 4), ")\n")
+cat("Highest Sensitivity:", best.sensitivity$Model, "(", round(best.sensitivity$Sensitivity, 4), ")\n\n")
+
+
+```
+
+# 6. INSIGHT & BUSINESS RECOMMENDATIONS
+
+```{r}
+cat("═══════════════════════════════════════════════════════════════\n")
+cat(" BUSINESS INSIGHTS & RECOMMENDATIONS \n")
+cat("═══════════════════════════════════════════════════════════════\n\n")
+
+cat("1. KEY FINDINGS FROM UNSUPERVISED LEARNING:\n")
+cat("   ✓ PCA Analysis:\n")
+cat("     - Identified 3 main employee dimensions:\n")
+cat("       • Career Seniority & Tenure (20.2% of variance)\n")
+cat("       • Performance & Job Mobility (8.0% of variance)\n")
+cat("       • Recent Recognition (7.6% of variance)\n")
+cat("     - Career progression is the PRIMARY differentiator\n\n")
+
+cat("   ✓ K-Means Clustering:\n")
+cat("     - Found 4 distinct employee segments:\n")
+cat("       • Cluster 1: Early-Career, Moderate Stability (18.9% attrition)\n")
+cat("       • Cluster 2: Senior, High-Level Employees (8.4% attrition - LOWEST)\n")
+cat("       • Cluster 3: New/Early-Career HIGH-RISK Group (20.9% attrition - HIGHEST) ⚠️\n")
+cat("       • Cluster 4: Mid-Career Stable Employees (9.2% attrition)\n")
+cat("     - Cluster 3 is the PRIMARY RISK SEGMENT for HR intervention\n\n")
+
+cat("2. PREDICTIVE MODEL PERFORMANCE:\n")
+cat("   ✓ All models achieved 84-88% overall accuracy\n")
+cat("   ✓ Best overall model: Logistic Regression (87.7% accuracy)\n")
+cat("   ✓ Best sensitivity: Logistic Regression (43.7%)\n")
+cat("   ✓ Challenge: Low sensitivity across all models due to class imbalance\n")
+cat("     - Models struggle to catch 'Yes' (attrition) cases\n")
+cat("     - Only 16.1% of employees left → models biased toward 'No'\n\n")
+
+cat("3. TOP ATTRITION PREDICTORS (from Logistic Regression):\n")
+cat("   🔴 STRONG POSITIVE PREDICTORS (increase attrition risk):\n")
+cat("     • OverTime (Yes): +1.912 coefficient ***\n")
+cat("       → Employees working overtime are MUCH more likely to leave\n")
+cat("     • BusinessTravel (Frequent): +2.636 ***\n")
+cat("       → Frequent travelers have significantly higher attrition\n")
+cat("     • DistanceFromHome: +0.053 ***\n")
+cat("       → Long commutes increase turnover risk\n")
+cat("     • NumCompaniesWorked: +0.154 **\n")
+cat("       → Job hoppers are more likely to leave\n")
+cat("     • MaritalStatus (Single): +1.201 **\n")
+cat("       → Single employees have higher mobility\n\n")
+
+cat("   🟢 STRONG NEGATIVE PREDICTORS (reduce attrition risk):\n")
+cat("     • EnvironmentSatisfaction: -0.481 ***\n")
+cat("       → Higher satisfaction = lower attrition\n")
+cat("     • JobSatisfaction: -0.425 ***\n")
+cat("       → Critical retention factor\n")
+cat("     • JobInvolvement: -0.417 **\n")
+cat("       → Engaged employees stay longer\n")
+cat("     • WorkLifeBalance: -0.345 *\n")
+cat("       → Better balance = better retention\n")
+cat("     • YearsInCurrentRole: -0.192 **\n")
+cat("       → Longer tenure in role = more stability\n")
+cat("     • TotalWorkingYears: -0.099 **\n")
+cat("       → Experience correlates with retention\n\n")
+
+cat("4. RANDOM FOREST VARIABLE IMPORTANCE:\n")
+cat("   Top 5 Most Important Features:\n")
+cat("     1. OverTime (by far the strongest predictor)\n")
+cat("     2. MonthlyIncome\n")
+cat("     3. TotalWorkingYears\n")
+cat("     4. YearsAtCompany\n")
+cat("     5. Age\n")
+cat("   → These align with logistic regression findings\n\n")
+
+cat("═══════════════════════════════════════════════════════════════\n")
+cat("📋 HR RECOMMENDATIONS 📋\n")
+cat("═══════════════════════════════════════════════════════════════\n\n")
+
+cat("🎯 PRIORITY 1: Target Cluster 3 (Highest Risk - 20.9% attrition)\n")
+cat("   Profile: Young, new employees (Age ~34, Tenure ~3.4 years)\n")
+cat("   Actions:\n")
+cat("   ✓ Implement comprehensive onboarding program (first 90 days)\n")
+cat("   ✓ Assign mentors to all new hires in first year\n")
+cat("   ✓ Fast-track salary progression for high performers\n")
+cat("   ✓ Provide clear career development paths\n")
+cat("   ✓ Monthly check-ins with manager during first 6 months\n\n")
+
+cat("🎯 PRIORITY 2: Address Overtime Issues\n")
+cat("   Finding: Overtime is THE STRONGEST predictor of attrition\n")
+cat("   Actions:\n")
+cat("   ✓ Establish overtime limits (max 10 hours/week)\n")
+cat("   ✓ Provide overtime compensation or comp time\n")
+cat("   ✓ Monitor workload distribution across teams\n")
+cat("   ✓ Hire additional staff if overtime is chronic\n")
+cat("   ✓ Implement 'no overtime' weeks quarterly\n\n")
+
+cat("🎯 PRIORITY 3: Improve Work Environment & Job Satisfaction\n")
+cat("   Finding: Both are top-3 retention factors\n")
+cat("   Actions:\n")
+cat("   ✓ Conduct quarterly satisfaction surveys\n")
+cat("   ✓ Act on feedback within 30 days\n")
+cat("   ✓ Improve physical workspace conditions\n")
+cat("   ✓ Recognize and reward contributions publicly\n")
+cat("   ✓ Foster positive team culture\n\n")
+
+cat("🎯 PRIORITY 4: Reduce Travel & Commute Burden\n")
+cat("   Finding: Frequent travel and long commutes drive attrition\n")
+cat("   Actions:\n")
+cat("   ✓ Offer remote work options (2-3 days/week)\n")
+cat("   ✓ Reduce frequency of business travel when possible\n")
+cat("   ✓ Provide travel compensation and recovery time\n")
+cat("   ✓ Consider flexible schedules for long commutes\n")
+cat("   ✓ Explore relocation assistance for key employees\n\n")
+
+cat("🎯 PRIORITY 5: Enhance Work-Life Balance\n")
+cat("   Finding: Poor balance significantly increases turnover\n")
+cat("   Actions:\n")
+cat("   ✓ Promote flexible working hours\n")
+cat("   ✓ Discourage after-hours emails/calls\n")
+cat("   ✓ Offer wellness programs and mental health support\n")
+cat("   ✓ Provide adequate vacation time and encourage usage\n")
+cat("   ✓ Lead by example (management takes time off)\n\n")
+
+```
+
+
+

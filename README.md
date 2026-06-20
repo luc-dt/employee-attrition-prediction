@@ -131,18 +131,19 @@ These SQL examples show how the project can support business analysis before or 
 
 | File | Description |
 | --- | --- |
-| `LucNguyen_FinalProject.Rmd` | Original R Markdown analysis |
-| `LucNguyen_FinalProject.html` | Rendered HTML report |
-| `Math624_LucNguyen_Final_Project.pdf` | Final written report |
-| `HR_Employee_Attrition.csv` | Employee attrition dataset |
+| `src/employee_attrition_analysis.Rmd` | Original R Markdown analysis |
 | `src/attrition_model.py` | Python machine learning pipeline |
-| `sql/attrition_business_questions.sql` | SQL analysis examples |
+| `docs/LucNguyen_FinalProject.html` | Rendered HTML report |
+| `docs/LucNguyen_Final_Project.pdf` | Final written report |
+| `data/HR_Employee_Attrition.csv` | Employee attrition dataset |
+| `sql/create_attrition_table.sql` | SQL table creation script |
+| `sql/attrition_business_questions.sql` | SQL business analysis examples |
 | `requirements.txt` | Python package requirements |
-| `.gitignore` | Git ignore rules for private/local files |
+| `.gitignore` | Git ignore rules for private and local files |
 
 ## How to Run the R Analysis
 
-Open `LucNguyen_FinalProject.Rmd` in RStudio and knit the file.
+Open `src/employee_attrition_analysis.Rmd` in RStudio and knit the file.
 
 Install the required R packages:
 
@@ -172,13 +173,13 @@ source .venv/bin/activate
 Install Python dependencies:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 Run the pipeline:
 
 ```bash
-python src/attrition_model.py --data HR_Employee_Attrition.csv
+python src/attrition_model.py --data data/HR_Employee_Attrition.csv
 ```
 
 The script saves the best trained model pipeline to:

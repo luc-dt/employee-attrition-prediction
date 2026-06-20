@@ -127,6 +127,19 @@ Example questions include:
 
 These SQL examples show how the project can support business analysis before or after machine learning modeling.
 
+## Databricks Extension
+
+The project was also extended in Databricks Free Edition to demonstrate a cloud-style analytics workflow.
+
+The Databricks notebook `databricks/01_data_ingestion_pyspark.ipynb` includes:
+
+- Loading the HR attrition dataset from GitHub
+- Converting the data into a Spark DataFrame
+- Creating a temporary SQL view
+- Running SQL analysis on attrition distribution, overtime, tenure, travel, and commute risk
+- Creating a visualization for attrition by business travel and commute distance
+- Summarizing business recommendations for HR stakeholders
+
 ## Project Files
 
 | File | Description |
@@ -140,6 +153,7 @@ These SQL examples show how the project can support business analysis before or 
 | `sql/attrition_business_questions.sql` | SQL business analysis examples |
 | `requirements.txt` | Python package requirements |
 | `.gitignore` | Git ignore rules for private and local files |
+| `databricks/01_data_ingestion_pyspark.ipynb` | Databricks notebook for data ingestion, SQL analysis, visualization, and business recommendations |
 
 ## How to Run the R Analysis
 
@@ -201,6 +215,8 @@ models/attrition_pipeline.joblib
 - pandas
 - scikit-learn
 - SQL
+- Databricks
+- PySpark
 
 ## Project Value
 
@@ -211,4 +227,4 @@ This project demonstrates the ability to:
 - Build and compare machine learning models
 - Evaluate models using metrics relevant to an imbalanced classification problem
 - Explain results clearly to business stakeholders
-- Use R, Python, and SQL in one portfolio project
+- Use R, Python, SQL, Databricks, and PySpark in one portfolio project

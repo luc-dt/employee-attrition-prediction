@@ -1,0 +1,22 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Model outputs
+models/
+*.joblib
+*.pkl
+
+# Private/local notes
+docs/JOB_APPLICATION_BRIEF.md
+docs/README_old.md
+
+# OS files
+.DS_Store
+Thumbs.db

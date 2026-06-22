@@ -21,8 +21,7 @@ docs/README_old_v2.md
 docs/project_review.md
 docs/project_review_v2
 
-# Power BI (binary files and connection strings with credentials)
-powerbi/data/dashboard_emp.pbix
+# Power BI (connection string with Databricks credentials — do not commit)
 powerbi/data/databricks-emp_attrition.pbids
 
 # OS files

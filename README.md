@@ -182,7 +182,7 @@ Based on the analysis, HR teams should consider:
 
 - **Python 3.10+**
 - **R 4.0+** and RStudio (for the R Markdown analysis)
-- **Power BI Desktop** (optional, to rebuild the dashboard from the Databricks/Power BI workflow — the `.pbix` file is not included in this repository)
+- **Power BI Desktop** (to open `powerbi/data/dashboard_emp.pbix` included in this repository)
 - **Databricks workspace** (optional, to run the PySpark notebooks)
 
 ## How to Run the Project

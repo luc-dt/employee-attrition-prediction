@@ -120,6 +120,8 @@ The models were evaluated using accuracy, recall, and ROC-AUC.
 | Random Forest       |   82.99% | 32.39% |  77.38% |
 | Gradient Boosting   |   84.35% | 23.94% |  78.35% |
 
+> **Note:** The table above reports Databricks pipeline metrics. Local Python results (in `models/model_metrics.csv`) may differ slightly due to library and runtime differences across environments. Logistic Regression remains the selected model in both cases as it achieves the highest attrition recall.
+
 ## Selected Model
 
 **Logistic Regression** was selected as the final model.
@@ -180,7 +182,7 @@ Based on the analysis, HR teams should consider:
 
 - **Python 3.10+**
 - **R 4.0+** and RStudio (for the R Markdown analysis)
-- **Power BI Desktop** (to open the `.pbix` dashboard file)
+- **Power BI Desktop** (optional, to rebuild the dashboard from the Databricks/Power BI workflow — the `.pbix` file is not included in this repository)
 - **Databricks workspace** (optional, to run the PySpark notebooks)
 
 ## How to Run the Project

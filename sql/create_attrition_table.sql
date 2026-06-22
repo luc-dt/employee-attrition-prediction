@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS hr_employee_attrition;
+
 CREATE TABLE hr_employee_attrition (
     Age INT,
     Attrition VARCHAR(10),

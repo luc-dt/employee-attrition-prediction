@@ -1,0 +1,10 @@
+﻿BusinessTravel,Sum of attrition_count,Sum of attrition_rate_pct,Sum of avg_job_satisfaction,Sum of employee_count,commute_band
+Travel_Rarely,57,12.84,2.75,444,0-5 miles
+Travel_Rarely,57,15.2,2.66,375,6-15 miles
+Travel_Rarely,42,18.75,2.68,224,16+ miles
+Travel_Frequently,28,22.4,2.75,125,0-5 miles
+Travel_Frequently,21,24.42,2.73,86,6-15 miles
+Travel_Frequently,20,30.3,2.94,66,16+ miles
+Non-Travel,6,15.38,2.69,39,16+ miles
+Non-Travel,4,8.33,2.9,48,6-15 miles
+Non-Travel,2,3.17,2.78,63,0-5 miles

@@ -9,13 +9,21 @@ __pycache__/
 *.pyo
 
 # Model outputs
-models/
+models/attrition_pipeline.joblib
 *.joblib
 *.pkl
 
 # Private/local notes
 docs/JOB_APPLICATION_BRIEF.md
 docs/README_old.md
+docs/README_old_v1.md
+docs/README_old_v2.md
+docs/project_review.md
+docs/project_review_v2
+
+# Power BI (binary files and connection strings with credentials)
+powerbi/data/dashboard_emp.pbix
+powerbi/data/databricks-emp_attrition.pbids
 
 # OS files
 .DS_Store

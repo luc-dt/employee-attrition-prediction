@@ -1,0 +1,4 @@
+﻿Sum of accuracy_pct,Sum of attrition_f1_pct,Sum of attrition_precision_pct,Sum of attrition_recall_pct,model,Sum of roc_auc_pct
+84.35,33.01,53.13,23.94,gradient_boosting,78.35
+82.99,38.02,46,32.39,random_forest,77.38
+76.42,48,37.21,67.61,logistic_regression,81.63

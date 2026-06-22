@@ -1,0 +1,12 @@
+﻿Department,Sum of attrition_count,Sum of attrition_rate_pct,Sum of employee_count,tenure_band
+Research & Development,51,25.63,199,1-2 years
+Research & Development,41,9.3,441,6+ years
+Research & Development,32,10.88,294,3-5 years
+Sales,32,14.16,226,6+ years
+Sales,29,33.72,86,1-2 years
+Sales,24,20.51,117,3-5 years
+Research & Development,9,33.33,27,<1 year
+Sales,7,41.18,17,<1 year
+Human Resources,6,46.15,13,1-2 years
+Human Resources,4,17.39,23,3-5 years
+Human Resources,2,7.41,27,6+ years

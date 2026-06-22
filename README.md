@@ -1,230 +1,287 @@
-# Employee Attrition Prediction
+# Employee Attrition Risk & Retention Dashboard
 
-**Course:** MATH624 — Statistical Learning | Ball State University  
-**Author:** Luc Nguyen | December 2025
+## Project Overview
 
-## Overview
+This project analyzes employee attrition risk using HR workforce data. The goal is to identify key attrition drivers, find high-risk employee groups, build machine learning models, and present actionable insights through a Power BI dashboard.
 
-This project analyzes employee attrition using the IBM HR Analytics dataset. The goal is to predict which employees are more likely to leave and identify key business factors that influence attrition.
-
-The project combines exploratory data analysis, employee segmentation, supervised machine learning, and business recommendations. The original analysis was completed in R Markdown, and additional Python and SQL files were added to make the project more relevant for data science job applications.
+The project combines data science, R statistical analysis, SQL analysis, PySpark/Databricks ingestion, machine learning, and business intelligence reporting.
 
 ## Business Problem
 
-Employee turnover can increase hiring costs, reduce productivity, and create knowledge loss. This project helps HR and business stakeholders answer three key questions:
+Employee attrition can create high costs for organizations through hiring, training, productivity loss, and knowledge loss. HR teams need a way to understand which employee groups are more likely to leave and which factors contribute most to attrition.
 
-1. Which employees are most likely to leave?
-2. Which employee groups have the highest attrition risk?
-3. What actions can help reduce employee attrition?
+This project focuses on answering:
+
+- Which employee groups have higher attrition risk?
+- How do overtime, business travel, commute distance, department, and tenure affect attrition?
+- Which machine learning model is most useful for identifying at-risk employees?
+- How can HR use the results to support retention decisions?
 
 ## Dataset
 
-The project uses the IBM HR Analytics Employee Attrition dataset.
+This project uses the [IBM HR Analytics Employee Attrition & Performance](https://www.kaggle.com/datasets/pavansubhasht/ibm-hr-analytics-attrition-dataset) dataset from Kaggle. It contains 1,470 employee records with 35 features covering demographics, job details, satisfaction scores, and attrition status.
 
-- **Rows:** 1,470 employees
-- **Features:** 31 employee attributes
-- **Target variable:** `Attrition`
+## Tools & Technologies
 
-Example features include:
+- **Python**: data preprocessing and machine learning
+- **Pandas / NumPy**: data manipulation
+- **Scikit-learn**: model training and evaluation
+- **SQL**: business question analysis
+- **PySpark / Databricks**: data ingestion, modeling, and dashboard output pipeline
+- **Power BI**: dashboard and data visualization
+- **R Markdown**: exploratory analysis and report generation
+- **Joblib**: model serialization
 
-- Age
+## Repository Structure
+
+```text
+employee-attrition-prediction/
+│
+├── data/
+│   └── HR_Employee_Attrition.csv
+│
+├── databricks/
+│   ├── 01_data_ingestion.ipynb
+│   ├── 02_modeling.ipynb
+│   └── 03_dashboard_outputs.ipynb
+│
+├── docs/
+│   ├── LucNguyen_Final_Project.pdf
+│   └── LucNguyen_FinalProject.html
+│
+├── models/
+│   ├── attrition_pipeline.joblib
+│   └── model_metrics.csv
+│
+├── powerbi/
+│   ├── data/
+│   └── screenshots/
+│       └── dashboard_emp.png
+│
+├── sql/
+│   ├── attrition_business_questions.sql
+│   └── create_attrition_table.sql
+│
+├── src/
+│   ├── attrition_model.py
+│   └── employee_attrition_analysis.Rmd
+│
+├── .gitignore
+├── README.md
+└── requirements.txt
+```
+
+## Project Workflow
+
+### 1. Data Ingestion (Databricks)
+
+The project includes a 3-notebook Databricks pipeline using PySpark:
+
+1. **`01_data_ingestion.ipynb`** — Loads the dataset into a Spark DataFrame, runs data quality checks (duplicates, nulls, invalid values), performs SQL-based EDA, and saves a reusable Databricks table.
+2. **`02_modeling.ipynb`** — Reads the ingested table, trains three classification models (Logistic Regression, Random Forest, Gradient Boosting), evaluates performance with recall priority, and saves model metrics as a Databricks table.
+3. **`03_dashboard_outputs.ipynb`** — Reads the employee and model metrics tables, creates five dashboard-ready summary tables (overview, overtime, tenure, travel, model comparison), and saves them for Power BI.
+
+### 2. Data Cleaning & Preparation
+
+The dataset was prepared for analysis and modeling by handling categorical variables, separating features and target labels, and preparing the data for machine learning pipelines.
+
+### 3. Exploratory Data Analysis
+
+EDA was performed to understand patterns in employee attrition across different workforce dimensions, including:
+
+- Overtime
+- Business travel
+- Commute distance
 - Department
-- Job Role
-- Monthly Income
-- OverTime
-- Business Travel
-- Job Satisfaction
-- Environment Satisfaction
-- Work-Life Balance
-- Years at Company
+- Tenure
+- Employee demographics and job-related features
 
-## Methods
+### 4. SQL Business Analysis
 
-### Exploratory Data Analysis
+SQL queries were created to answer business-focused HR questions, such as attrition rate by department, tenure group, travel frequency, and other employee segments.
 
-The analysis explores:
+### 5. Machine Learning Modeling
 
-- Attrition class imbalance
-- Missing values
-- Summary statistics
-- Numeric feature distributions
-- Relationships between employee attributes and attrition
-- Correlations among key variables
+Multiple classification models were trained and compared to predict employee attrition risk.
 
-### Unsupervised Learning
-
-The project uses unsupervised learning to identify employee segments:
-
-- Principal Component Analysis, or PCA
-- K-Means clustering
-- Hierarchical clustering
-
-These methods help identify workforce groups with different attrition patterns.
-
-### Supervised Learning
-
-The project compares six classification models:
-
-| Model | Accuracy | Sensitivity |
-| --- | ---: | ---: |
-| Logistic Regression | 87.7% | 43.7% |
-| LDA | 86.4% | 39.4% |
-| QDA | 86.4% | 42.3% |
-| k-NN | 84.8% | 16.9% |
-| Random Forest | 85.7% | 15.5% |
-| Gradient Boosting | 87.3% | 36.6% |
-
-The best model was **Logistic Regression** because it provided strong accuracy, the best sensitivity among the tested models, and clear interpretability for business stakeholders.
-
-## Key Findings
-
-- **Cluster 3**, representing newer and early-career employees, had the highest attrition rate at **20.9%**.
-- **OverTime** was the strongest predictor of attrition.
-- **Frequent business travel** increased attrition risk.
-- Higher **job satisfaction**, **environment satisfaction**, and **work-life balance** reduced attrition risk.
-- Since only **16.1%** of employees left, sensitivity/recall is important and accuracy alone is not enough.
-
-## Business Recommendations
-
-Based on the analysis, HR teams should:
-
-- Monitor overtime and workload distribution.
-- Improve onboarding and mentoring for early-tenure employees.
-- Track job satisfaction and environment satisfaction through regular surveys.
-- Reduce unnecessary business travel when possible.
-- Offer flexible work options for employees with long commutes.
-- Monitor model performance over time if the model is used in practice.
-
-## Python Machine Learning Pipeline
-
-The file `src/attrition_model.py` adds a Python/scikit-learn workflow that complements the original R analysis.
-
-The Python pipeline:
-
-- Loads the HR attrition dataset
-- Removes non-informative columns
-- Encodes categorical variables
-- Scales numeric variables
-- Trains multiple classification models
-- Evaluates attrition-focused metrics
-- Saves the best model pipeline with `joblib`
-
-Models included in the Python pipeline:
+Models tested:
 
 - Logistic Regression
 - Random Forest
 - Gradient Boosting
 
-## SQL Business Analysis
+### 6. Model Evaluation
 
-The file `sql/attrition_business_questions.sql` includes SQL examples for answering stakeholder-focused business questions.
+The models were evaluated using accuracy, recall, and ROC-AUC.
 
-Example questions include:
+| Model               | Accuracy | Recall | ROC-AUC |
+| ------------------- | -------: | -----: | ------: |
+| Logistic Regression |   76.42% | 67.61% |  81.63% |
+| Random Forest       |   82.99% | 32.39% |  77.38% |
+| Gradient Boosting   |   84.35% | 23.94% |  78.35% |
 
-- Which overtime groups have the highest attrition rate?
-- Which departments have high early-tenure attrition?
-- How do business travel and commute distance relate to attrition risk?
+## Selected Model
 
-These SQL examples show how the project can support business analysis before or after machine learning modeling.
+**Logistic Regression** was selected as the final model.
 
-## Databricks Extension
+Although Random Forest and Gradient Boosting achieved higher accuracy, Logistic Regression had the highest recall. For an HR attrition use case, recall is more important because missing at-risk employees can be costly.
 
-The project was also extended in Databricks Free Edition to demonstrate a cloud-style analytics workflow.
+In this business context:
 
-The Databricks notebook `databricks/01_data_ingestion_pyspark.ipynb` includes:
+- A false negative means the model fails to identify an employee who may leave.
+- HR may lose the opportunity to take retention action.
+- Therefore, identifying more potential attrition cases is more valuable than optimizing accuracy alone.
 
-- Loading the HR attrition dataset from GitHub
-- Converting the data into a Spark DataFrame
-- Creating a temporary SQL view
-- Running SQL analysis on attrition distribution, overtime, tenure, travel, and commute risk
-- Creating a visualization for attrition by business travel and commute distance
-- Summarizing business recommendations for HR stakeholders
+## Key Insights
 
-## Project Files
+- Employees who work overtime show significantly higher attrition risk.
+- Frequent business travel combined with longer commute distance is associated with higher attrition.
+- Attrition risk varies by department and tenure group.
+- Some employee groups show higher risk early in their tenure.
+- Recall is the most important model metric for this use case because HR needs to detect as many at-risk employees as possible.
 
-| File | Description |
-| --- | --- |
-| `src/employee_attrition_analysis.Rmd` | Original R Markdown analysis |
-| `src/attrition_model.py` | Python machine learning pipeline |
-| `docs/LucNguyen_FinalProject.html` | Rendered HTML report |
-| `docs/LucNguyen_Final_Project.pdf` | Final written report |
-| `data/HR_Employee_Attrition.csv` | Employee attrition dataset |
-| `sql/create_attrition_table.sql` | SQL table creation script |
-| `sql/attrition_business_questions.sql` | SQL business analysis examples |
-| `requirements.txt` | Python package requirements |
-| `.gitignore` | Git ignore rules for private and local files |
-| `databricks/01_data_ingestion_pyspark.ipynb` | Databricks notebook for data ingestion, SQL analysis, visualization, and business recommendations |
+## Power BI Dashboard
 
-## How to Run the R Analysis
+The Power BI dashboard summarizes attrition risk patterns, high-risk employee groups, and model performance.
 
-Open `src/employee_attrition_analysis.Rmd` in RStudio and knit the file.
+![Employee Attrition Dashboard](powerbi/screenshots/dashboard_emp.png)
 
-Install the required R packages:
+The dashboard includes:
+
+- Total employees
+- Retained employees
+- Attrition count
+- Attrition rate
+- Attrition by overtime
+- Attrition by business travel and commute distance
+- Attrition by department and tenure
+- Model performance comparison
+- Selected model recall
+
+## Business Recommendations
+
+Based on the analysis, HR teams should consider:
+
+1. **Monitoring overtime workload**
+   Employees with overtime show higher attrition risk. HR and managers should review workload balance and burnout risk.
+
+2. **Supporting frequent travelers**
+   Employees who travel frequently, especially with longer commutes, may need additional flexibility or support.
+
+3. **Focusing on early-tenure employees**
+   Some attrition risk appears within early tenure groups. Better onboarding, career development, and manager check-ins may help reduce early attrition.
+
+4. **Using recall-focused models for retention**
+   In employee attrition prediction, it is better to identify more potentially at-risk employees than to miss them.
+
+## Prerequisites
+
+- **Python 3.10+**
+- **R 4.0+** and RStudio (for the R Markdown analysis)
+- **Power BI Desktop** (to open the `.pbix` dashboard file)
+- **Databricks workspace** (optional, to run the PySpark notebooks)
+
+## How to Run the Project
+
+### Python (model training)
+
+#### 1. Clone the repository
+
+```bash
+git clone https://github.com/luc-dt/employee-attrition-prediction.git
+cd employee-attrition-prediction
+```
+
+#### 2. Create a virtual environment
+
+```bash
+python -m venv .venv
+```
+
+#### 3. Activate the virtual environment
+
+Windows:
+
+```bash
+.venv\Scripts\activate
+```
+
+Mac/Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+#### 4. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+#### 5. Run the model training script
+
+```bash
+python src/attrition_model.py
+```
+
+### R Markdown (exploratory analysis)
+
+#### 1. Install required R packages
 
 ```r
 install.packages(c("tidyverse", "corrplot", "factoextra", "caret",
                    "MASS", "class", "randomForest", "gbm", "pROC"))
 ```
 
-## How to Run the Python Pipeline
+#### 2. Open and knit the analysis
 
-Create a virtual environment:
+Open `src/employee_attrition_analysis.Rmd` in RStudio and click **Knit** to generate the HTML or PDF report.
 
-### Windows Git Bash
+### Databricks (PySpark pipeline)
 
-```bash
-python -m venv .venv
-source .venv/Scripts/activate
-```
+Import the three notebooks from `databricks/` into a Databricks workspace and run them in order:
 
-### macOS or Linux
+1. `01_data_ingestion.ipynb`
+2. `02_modeling.ipynb`
+3. `03_dashboard_outputs.ipynb`
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
+## Outputs
 
-Install Python dependencies:
+The project produces the following outputs:
 
-```bash
-python -m pip install -r requirements.txt
-```
+- Trained machine learning pipeline: `models/attrition_pipeline.joblib`
+- Model performance results: `models/model_metrics.csv`
+- SQL business analysis queries: `sql/`
+- Power BI dashboard screenshot: `powerbi/screenshots/dashboard_emp.png`
+- Final analysis report: `docs/`
+- Databricks tables: `attrition_project.employee_attrition`, `attrition_project.model_metrics`, and five `dashboard_*` tables
 
-Run the pipeline:
+## Skills Demonstrated
 
-```bash
-python src/attrition_model.py --data data/HR_Employee_Attrition.csv
-```
+This project demonstrates:
 
-The script saves the best trained model pipeline to:
+- Data cleaning and preprocessing
+- Exploratory data analysis
+- SQL-based business analysis
+- Classification modeling
+- Model evaluation and selection
+- Recall-focused business reasoning
+- PySpark DataFrame API and Databricks SQL
+- End-to-end Databricks notebook pipeline
+- Power BI dashboard development
+- Communicating technical results to business users
 
-```text
-models/attrition_pipeline.joblib
-```
+## Future Improvements
 
-## Tech Stack
+Possible next steps include:
 
-- R
-- R Markdown
-- tidyverse
-- ggplot2
-- caret
-- randomForest
-- gbm
-- Python
-- pandas
-- scikit-learn
-- SQL
-- Databricks
-- PySpark
+- Add feature importance analysis
+- Tune model thresholds to improve recall
+- Add cross-validation
+- Build an interactive Power BI report file
+- Add employee risk scoring output
+- Deploy the model as a simple API or batch scoring pipeline
 
-## Project Value
+## Conclusion
 
-This project demonstrates the ability to:
-
-- Translate a business problem into a data science workflow
-- Clean and explore structured HR data
-- Build and compare machine learning models
-- Evaluate models using metrics relevant to an imbalanced classification problem
-- Explain results clearly to business stakeholders
-- Use R, Python, SQL, Databricks, and PySpark in one portfolio project
+This project shows how data science can support HR decision-making by identifying attrition risk patterns and helping HR teams focus on employees who may need retention support. The final model and dashboard are designed to turn workforce data into practical business insights.

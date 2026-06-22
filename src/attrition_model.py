@@ -203,7 +203,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--data",
         type=Path,
-        default=Path("HR_Employee_Attrition.csv"),
+        default=Path("data/HR_Employee_Attrition.csv"),
         help="Path to the dataset.",
     )
 

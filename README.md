@@ -132,6 +132,8 @@ In this business context:
 - HR may lose the opportunity to take retention action.
 - Therefore, identifying more potential attrition cases is more valuable than optimizing accuracy alone.
 
+Note that prioritizing recall comes with a tradeoff: the model's attrition precision is approximately 37%. This means some employees flagged as high-risk will not actually leave. Because of this, the model should be used as a decision-support tool for HR review, not as an automated decision system.
+
 ## Key Insights
 
 - Employees who work overtime show significantly higher attrition risk.
@@ -221,8 +223,10 @@ pip install -r requirements.txt
 #### 5. Run the model training script
 
 ```bash
-python src/attrition_model.py
+python src/attrition_model.py --data data/HR_Employee_Attrition.csv
 ```
+
+The `--data` flag is optional. The script defaults to `data/HR_Employee_Attrition.csv` when run from the repository root.
 
 ### R Markdown (exploratory analysis)
 
@@ -255,6 +259,14 @@ The project produces the following outputs:
 - Power BI dashboard screenshot: `powerbi/screenshots/dashboard_emp.png`
 - Final analysis report: `docs/`
 - Databricks tables: `attrition_project.employee_attrition`, `attrition_project.model_metrics`, and five `dashboard_*` tables
+
+## Limitations
+
+- The dataset is a synthetic public IBM HR dataset and may not reflect real workforce dynamics at any specific company.
+- Model performance may not generalize to organizations with different cultures, industries, or HR practices.
+- The model was trained on a single 70/30 split without cross-validation, which may introduce variance in reported metrics.
+- Attrition prediction should support, not replace, human HR judgment and should be reviewed alongside qualitative context.
+- Additional validation, fairness review, and legal compliance checks would be required before any production deployment.
 
 ## Skills Demonstrated
 

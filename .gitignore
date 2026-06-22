@@ -20,6 +20,7 @@ docs/README_old_v1.md
 docs/README_old_v2.md
 docs/project_review.md
 docs/project_review_v2
+CV/
 
 # Power BI (connection string with Databricks credentials — do not commit)
 powerbi/data/databricks-emp_attrition.pbids
